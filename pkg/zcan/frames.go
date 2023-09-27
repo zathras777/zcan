@@ -1,10 +1,16 @@
 package zcan
 
+import "fmt"
+
 func (dev *ZehnderDevice) processFrame() {
+	dev.wg.Add(1)
 loop:
 	for {
 		select {
 		case frame := <-dev.frameQ:
+			if dev.doCapture {
+				dev.captureFh.WriteString(fmt.Sprintf("%s\n", frame))
+			}
 			ck := frame.ID >> 24
 			switch ck {
 			case 0:
@@ -17,5 +23,10 @@ loop:
 		case <-dev.stopSignal:
 			break loop
 		}
+	}
+	dev.wg.Done()
+
+	if dev.doCapture {
+		dev.captureFh.Close()
 	}
 }

@@ -9,6 +9,12 @@ import (
 	"go.einride.tech/can"
 )
 
+func ZehnderVersionDecode(val uint32) (major int, minor int) {
+	major = int(val>>30) & 3
+	minor = int(val>>20) & 1023
+	return
+}
+
 type ZehnderDevice struct {
 	NodeID    byte
 	Connected bool
@@ -28,6 +34,8 @@ type ZehnderDevice struct {
 	pdoData     map[int]*PDOValue
 	rmiCbFn     func([]byte)
 	rmiSequence byte
+	captureFh   *os.File
+	doCapture   bool
 }
 
 func NewZehnderDevice(id byte) *ZehnderDevice {
@@ -75,6 +83,17 @@ func (dev *ZehnderDevice) Stop() {
 	for n := 0; n < dev.routines; n++ {
 		dev.stopSignal <- true
 	}
+}
+
+func (dev *ZehnderDevice) CaptureAll(fn string) error {
+	f, err := os.Create(fn)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	dev.captureFh = f
+	dev.doCapture = true
+	return nil
 }
 
 func (dev *ZehnderDevice) ProcessDumpFile(filename string) (err error) {

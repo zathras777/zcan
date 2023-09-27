@@ -97,6 +97,14 @@ func (zr ZehnderDestination) GetMultiple(dev *ZehnderDevice, props []byte, flags
 	dev.rmiRequestQ <- &rmi
 }
 
+func (zr ZehnderDestination) SetOne(dev *ZehnderDevice, prop byte, value []byte) {
+	// Untested
+	rmi := zehnderRMI{SourceId: dev.NodeID, DestId: zr.DestNodeId, IsRequest: true, Sequence: dev.rmiSequence}
+	rmi.Data = append([]byte{0x03, zr.Unit, zr.SubUnit, prop}, value...)
+	dev.rmiSequence = (dev.rmiSequence + 1) & 0x03
+	dev.rmiRequestQ <- &rmi
+}
+
 func rmiFromFrame(frame can.Frame) *zehnderRMI {
 	rmi := zehnderRMI{SourceId: byte(frame.ID & 0x3F)}
 	rmi.DestId = byte(frame.ID>>6) & 0x3F
