@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"log"
@@ -11,14 +10,6 @@ import (
 
 	"github.com/zathras777/zcan/pkg/zcan"
 )
-
-func showSerialNumber(data []byte) {
-	fmt.Printf("Test #1 -> Serial Number: %s\n", string(data))
-}
-
-func showModel(data []byte) {
-	fmt.Printf("Test #2 -> Model Description: %s\n", string(data))
-}
 
 func index00(data []byte, start int) int {
 	fmt.Println(data)
@@ -33,14 +24,40 @@ func index00(data []byte, start int) int {
 
 var dev *zcan.ZehnderDevice
 
-func logModelData(data []byte) {
-	pos := index00(data, 0)
-	serial := string(data[:pos])
-	version := binary.LittleEndian.Uint32(data[pos+1 : pos+5])
-	maj, min := zcan.ZehnderVersionDecode(version)
-	model := string(data[pos+5 : index00(data, pos+5)])
-	log.Printf("Processing data for %s [%s] Version %d.%d", model, serial, maj, min)
+func logModelData(rmi *zcan.ZehnderRMI) {
+	serial, err := rmi.GetData(zcan.CN_STRING)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	vers, err := rmi.GetData(zcan.CN_VERSION)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	model, err := rmi.GetData(zcan.CN_STRING)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	log.Printf("Processing data for %s [%s] Version %d.%d", model, serial, vers.([]int)[0], vers.([]int)[1])
 	dev.Name = fmt.Sprintf("%s [%s]", model, serial)
+}
+
+var rmiMsgs []*zcan.ZehnderRMI
+
+func storeRMI(rmi *zcan.ZehnderRMI) {
+	rmiMsgs = append(rmiMsgs, rmi)
+}
+
+func dumpStoredRMI() {
+	fmt.Println("\nRMI Messages")
+	for _, rmi := range rmiMsgs {
+		fmt.Printf("%08X : Source %d Dest %d Counter %d  Sequence %d\n", rmi.MakeCANId(), rmi.SourceId,
+			rmi.DestId, rmi.Counter, rmi.Sequence)
+		fmt.Printf("         : IsMulti %t  IsRequest %t  IsError %t\n", rmi.IsMulti, rmi.IsRequest, rmi.IsError)
+		fmt.Printf("         : %d bytes %v\n", rmi.DataLength, rmi.Data[:rmi.DataLength])
+	}
 }
 
 func main() {
@@ -87,15 +104,15 @@ func main() {
 	dev.Start()
 
 	if dumpFilename != "" {
+		dev.SetDefaultRMICallback(storeRMI)
 		fmt.Printf("Processing dumpfile: %s\n", dumpFilename)
 		dev.ProcessDumpFile(dumpFilename)
 		dev.Stop()
+		dumpStoredRMI()
 	} else {
 		fmt.Printf("\n\nProcessing CAN packets. CTRL+C to quit...\n\n")
 
 		dest := zcan.NewZehnderDestination(1, 1, 1)
-		dest.GetOne(dev, 4, zcan.ZehnderRMITypeActualValue, showSerialNumber)
-		dest.GetOne(dev, 8, zcan.ZehnderRMITypeActualValue, showModel)
 		dest.GetMultiple(dev, []byte{4, 6, 8}, zcan.ZehnderRMITypeActualValue, logModelData)
 
 		sigs := make(chan os.Signal, 1)

@@ -13,10 +13,10 @@ import (
 	"go.einride.tech/can"
 )
 
-func ZehnderVersionDecode(val uint32) (major int, minor int) {
-	major = int(val>>30) & 3
-	minor = int(val>>20) & 1023
-	return
+func ZehnderVersionDecode(val uint32) []int {
+	major := int(val>>30) & 3
+	minor := int(val>>20) & 1023
+	return []int{major, minor}
 }
 
 type ZehnderDevice struct {
@@ -26,26 +26,31 @@ type ZehnderDevice struct {
 
 	connection zConnection
 
-	wg          sync.WaitGroup
-	routines    int
-	stopSignal  chan bool
-	frameQ      chan can.Frame
-	pdoQ        chan can.Frame
-	rmiQ        chan can.Frame
-	txQ         chan can.Frame
-	heartbeatQ  chan can.Frame
-	rmiRequestQ chan *zehnderRMI
-	rmiCTS      chan bool
-	pdoData     map[int]*PDOValue
-	rmiCbFn     func([]byte)
-	rmiSequence byte
-	captureFh   *os.File
-	doCapture   bool
-	http        *http.Server
+	wg             sync.WaitGroup
+	routines       int
+	stopSignal     chan bool
+	frameQ         chan can.Frame
+	pdoQ           chan can.Frame
+	rmiQ           chan can.Frame
+	txQ            chan can.Frame
+	heartbeatQ     chan can.Frame
+	rmiRequestQ    chan *ZehnderRMI
+	rmiCTS         chan bool
+	pdoData        map[int]*PDOValue
+	rmiCbFn        func(*ZehnderRMI)
+	defaultRMICbFn func(*ZehnderRMI)
+	rmiSequence    byte
+	captureFh      *os.File
+	doCapture      bool
+	http           *http.Server
 }
 
 func NewZehnderDevice(id byte) *ZehnderDevice {
 	return &ZehnderDevice{NodeID: id, pdoData: make(map[int]*PDOValue), Name: "Zehnder MVHR"}
+}
+
+func (dev *ZehnderDevice) SetDefaultRMICallback(fn func(*ZehnderRMI)) {
+	dev.defaultRMICbFn = fn
 }
 
 func (dev *ZehnderDevice) Connect(interfaceName string) error {
@@ -59,7 +64,7 @@ func (dev *ZehnderDevice) Start() error {
 	dev.rmiQ = make(chan can.Frame)
 	dev.txQ = make(chan can.Frame)
 	dev.heartbeatQ = make(chan can.Frame)
-	dev.rmiRequestQ = make(chan *zehnderRMI)
+	dev.rmiRequestQ = make(chan *ZehnderRMI)
 	dev.rmiCTS = make(chan bool)
 
 	go dev.processFrame()

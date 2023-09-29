@@ -58,6 +58,26 @@ The HTTP server provides a simple JSON output of the PDO data collected.
 }
 ```
 
+It is possible to have the app capture the frame data and then process it. By default simply passing the -capture flag will result in a file called output being created which will contain each frame on a seperate line. This can be changed by using the -capture-filename and passing the desired filename.
+
+```
+$ ./zcan -interface can0 -output 
+```
+
+Processing the data then requires running again using the -dumpfile option.
+
+```
+$ ./zcan -dumpfile output
+Processing dumpfile: output
+File: output. Total size is 13822 bytes
+..................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+
+RMI Messages
+1F004DC1 : Source 1 Dest 55 Counter 0  Sequence 0
+         : IsMulti true  IsRequest false  IsError false
+         : 12 bytes [83 73 84 ...
+```
+
 ## Building
 When building on a RaspberryPi with the 64-bit OS, I had to set the GOARCH target to arm64 in order to build.
 

@@ -6,8 +6,9 @@ import (
 )
 
 func (dev *ZehnderDevice) processFrame() {
-	log.Println("processFrame routine started")
 	dev.wg.Add(1)
+	defer dev.wg.Done()
+
 loop:
 	for {
 		select {
@@ -30,7 +31,6 @@ loop:
 			break loop
 		}
 	}
-	dev.wg.Done()
 
 	if dev.doCapture {
 		dev.captureFh.Close()

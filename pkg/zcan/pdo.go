@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"strings"
 
 	"go.einride.tech/can"
@@ -63,6 +64,7 @@ const (
 	UNIT_M3H     = "m³/h"
 	UNIT_SECONDS = "seconds"
 	UNIT_UNKNOWN = "unknown"
+	UNIT_DAYS    = "Days"
 )
 
 type ZehnderType int
@@ -94,6 +96,8 @@ type PDOValue struct {
 }
 
 var sensorData = map[int]PDOSensor{
+	49:  {"Operating Mode", UNIT_UNKNOWN, CN_INT8, 0},
+	65:  {"Fan Speed Setting", UNIT_UNKNOWN, CN_INT8, 0},
 	81:  {"Boost Period Remaining", UNIT_SECONDS, CN_UINT32, 0},
 	117: {"Exhaust Fan Duty", UNIT_PERCENT, CN_UINT8, 0},
 	118: {"Supply Fan Duty", UNIT_PERCENT, CN_UINT8, 0},
@@ -102,19 +106,26 @@ var sensorData = map[int]PDOSensor{
 	121: {"Exhaust Fan Speed", UNIT_RPM, CN_UINT16, 0},
 	122: {"Supply Fan Speed", UNIT_RPM, CN_UINT16, 0},
 	128: {"Power Consumption", UNIT_WATT, CN_UINT16, 0},
+	130: {"Power Consumption Total", UNIT_KWH, CN_UINT16, 0},
+	145: {"Preheater Power Consumption Total", UNIT_KWH, CN_UINT16, 0},
+	146: {"Preheater Power Consumption", UNIT_WATT, CN_UINT16, 0},
+	192: {"Filter Replacement Days", UNIT_DAYS, CN_UINT16, 0},
+	209: {"RMOT", UNIT_CELCIUS, CN_UINT16, 1},
 	213: {"Avoided Heating Actual", UNIT_WATT, CN_UINT16, 2},
 	214: {"Avoided Heating YTD", UNIT_KWH, CN_UINT16, 0},
 	220: {"Preheated Air Temperature (pre Heating)", UNIT_CELCIUS, CN_UINT16, 1},
 	221: {"Preheated Air Temperature (post Heating)", UNIT_CELCIUS, CN_UINT16, 1},
 	227: {"Bypass State", UNIT_PERCENT, CN_UINT8, 0},
+	274: {"Extract Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
 	275: {"Exhaust Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
 	276: {"Outdoor Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
 	277: {"Preheated Outside Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
-	278: {"Supply Temperature", UNIT_CELCIUS, CN_UINT16, 1},
+	278: {"Supply Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
 	290: {"Extract Humidity", UNIT_PERCENT, CN_UINT8, 0},
 	291: {"Exhaust Humidity", UNIT_PERCENT, CN_UINT8, 0},
 	292: {"Outdoor Humidity", UNIT_PERCENT, CN_UINT8, 0},
 	293: {"Preheated Outdoor Humidity", UNIT_PERCENT, CN_UINT8, 0},
+	294: {"Supply Air Humidity", UNIT_PERCENT, CN_INT8, 0},
 }
 
 func findSensor(pdo int, dataLen int) PDOSensor {
@@ -136,6 +147,8 @@ func (pv PDOValue) String() string {
 	if pv.IsFloat() {
 		fmtS := fmt.Sprintf("  %%6.%df", pv.Sensor.DecimalPlaces)
 		s += fmt.Sprintf(fmtS, pv.Float())
+	} else if pv.IsSigned() {
+		s += fmt.Sprintf("  %6d", pv.SignedNumber())
 	} else {
 		s += fmt.Sprintf("  %6d", pv.Number())
 	}
@@ -148,6 +161,8 @@ func (pv PDOValue) jsonString() string {
 	if pv.IsFloat() {
 		fmtS := fmt.Sprintf("%%.%df", pv.Sensor.DecimalPlaces)
 		val = fmt.Sprintf(fmtS, pv.Float())
+	} else if pv.IsSigned() {
+		val = fmt.Sprintf("%d", pv.SignedNumber())
 	} else {
 		val = fmt.Sprintf("%d", pv.Number())
 	}
@@ -157,10 +172,13 @@ func (pv PDOValue) jsonString() string {
 func (pv PDOValue) IsBool() bool   { return pv.Sensor.DataType == CN_BOOL }
 func (pv PDOValue) IsString() bool { return pv.Sensor.DataType == CN_STRING }
 func (pv PDOValue) IsFloat() bool  { return pv.Sensor.DecimalPlaces > 0 }
+func (pv PDOValue) IsSigned() bool {
+	return pv.Sensor.DataType == CN_INT8 || pv.Sensor.DataType == CN_INT16 || pv.Sensor.DataType == CN_INT64
+}
 
 func (pv PDOValue) Number() uint {
 	if pv.Sensor.DataType == CN_INT16 || pv.Sensor.DataType == CN_INT8 || pv.Sensor.DataType == CN_INT64 {
-		// todo: log problem
+		log.Println("attempt to get an unsigned number from a sensor with a signed data type?")
 		return 0
 	}
 	switch pv.Sensor.DataType {
@@ -170,6 +188,22 @@ func (pv PDOValue) Number() uint {
 		return uint(binary.LittleEndian.Uint16(pv.Value))
 	case CN_UINT32:
 		return uint(binary.LittleEndian.Uint32(pv.Value))
+	}
+	return 0
+}
+
+func (pv PDOValue) SignedNumber() int {
+	if pv.Sensor.DataType == CN_UINT16 || pv.Sensor.DataType == CN_UINT8 || pv.Sensor.DataType == CN_UINT32 {
+		log.Println("attempt to get an signed number from a sensor with an unsigned data type?")
+		return 0
+	}
+	switch pv.Sensor.DataType {
+	case CN_INT8:
+		return int(pv.Value[0])
+	case CN_INT16:
+		return int(binary.LittleEndian.Uint16(pv.Value))
+	case CN_INT64:
+		return int(binary.LittleEndian.Uint32(pv.Value))
 	}
 	return 0
 }
