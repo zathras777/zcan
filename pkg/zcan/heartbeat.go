@@ -14,7 +14,9 @@ func (dev *ZehnderDevice) makeHeartbeatFrame() can.Frame {
 func (dev *ZehnderDevice) heartbeat() {
 	dev.wg.Add(1)
 
-	dev.txQ <- dev.makeHeartbeatFrame()
+	if dev.hasNetwork() {
+		dev.txQ <- dev.makeHeartbeatFrame()
+	}
 	timer := time.NewTicker(2 * time.Second)
 
 loop:
@@ -24,14 +26,18 @@ loop:
 			if frame.IsRemote {
 				nodeId := frame.ID & 0x3F
 				if nodeId == uint32(dev.NodeID) {
-					dev.txQ <- dev.makeHeartbeatFrame()
+					if dev.hasNetwork() {
+						dev.txQ <- dev.makeHeartbeatFrame()
+					}
 					timer.Reset(2 * time.Second)
 				}
 			}
 		case <-dev.stopSignal:
 			break loop
 		case <-timer.C:
-			dev.txQ <- dev.makeHeartbeatFrame()
+			if dev.hasNetwork() {
+				dev.txQ <- dev.makeHeartbeatFrame()
+			}
 		}
 	}
 	timer.Stop()

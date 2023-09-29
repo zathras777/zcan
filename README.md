@@ -11,24 +11,63 @@ As part of our Zehnder installation we have a ComfoConnect LAN-C module which al
 The sample application produces a simple dump of PDO's seen on the CAN interface.
 
 ```
-$ ./zcan -interface can0
+$ ./zcan -interface can0 -address 10.0.73.xxx
+2023/09/28 04:38:49 Starting network services
 
 
 Processing CAN packets. CTRL+C to quit...
 
+2023/09/28 04:38:49 Starting HTTP server listening @ http://10.0.73.xxx:7004/
 Test #1 -> Serial Number: SITxxxxxxxx
 Test #2 -> Model DEscription: ComfoAir Q450 GB ST ERV
-Test #3 - Multiple
-	Serial Number: SITxxxxxxxx
-	Version: 3222284288 -> [3.1]
-	Model: ComfoAir Q450 GB ST ERV
-^C
-122: Supply Fan Speed                             : 0xC408        2244 rpm
-121: Exhaust Fan Speed                            : 0x0508        2053 rpm
-117: Exhaust Fan Duty                             : 0x37            55 %
-118: Supply Fan Duty                              : 0x3B            59 %
-213: Avoided Heating: Actual                      : 0x5A02       30.10 W
-119: Exhaust Fan Flow                             : 0xFA00         250 m³/h
-305: Unknown sensor 305                           : 0x4500          69 unknown
-128: Power Consumption                            : 0x3700          55 W
+2023/09/28 04:38:49 Processing data for ComfoAir Q450 GB ST ERV [SITxxxxxxxx] Version 3.1
+^C2023/09/29 02:06:11 HTTP server shutdown
+
+ID   Name                                         Raw Data     Value Units
+---- -------------------------------------------- ---------- ------- ---------
+213  Avoided Heating Actual                       0x9F03       46.35 W
+117  Exhaust Fan Duty                             0x38            56 %
+119  Exhaust Fan Flow                             0xFB00         251 m³/h
+121  Exhaust Fan Speed                            0x3D08        2109 rpm
+128  Power Consumption                            0x3800          56 W
+118  Supply Fan Duty                              0x3C            60 %
+120  Supply Fan Flow                              0xFA00         250 m³/h
+122  Supply Fan Speed                             0xB708        2231 rpm
+222  Unknown sensor 222                           0x00             0 unknown
+305  Unknown sensor 305                           0x4600          70 unknown
+306  Unknown sensor 306                           0x4500          69 unknown
 ```
+
+The HTTP server provides a simple JSON output of the PDO data collected.
+
+```
+{
+  "avoided-heating:-actual": 33.90, 
+  "supply-fan-duty": 61, 
+  "unknown-sensor-222": 0, 
+  "unknown-sensor-305": 70, 
+  "exhaust-fan-speed": 2064, 
+  "unknown-sensor-306": 71, 
+  "unknown-sensor-294": 61, 
+  "supply-fan-speed": 2305, 
+  "exhaust-fan-duty": 54, 
+  "exhaust-fan-flow": 251, 
+  "supply-fan-flow": 253, 
+  "unknown-sensor-418": 0, 
+  "power-consumption": 58
+}
+```
+
+## Building
+When building on a RaspberryPi with the 64-bit OS, I had to set the GOARCH target to arm64 in order to build.
+
+```
+$ go env -w GOARCH=arm64
+```
+
+
+## Future Plans
+- discover the PDO meanings for unknown sensors.  The excellent data provided by https://github.com/michaelarnauts/aiocomfoconnect/blob/master/docs/PROTOCOL-PDO.md doesn't seem to fully align with what I am seeing.
+- add the ability to change settings on the unit via HTTP.
+- improve the logging
+

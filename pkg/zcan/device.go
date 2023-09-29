@@ -2,8 +2,12 @@ package zcan
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
+	"sort"
 	"sync"
 
 	"go.einride.tech/can"
@@ -16,6 +20,7 @@ func ZehnderVersionDecode(val uint32) (major int, minor int) {
 }
 
 type ZehnderDevice struct {
+	Name      string
 	NodeID    byte
 	Connected bool
 
@@ -36,10 +41,11 @@ type ZehnderDevice struct {
 	rmiSequence byte
 	captureFh   *os.File
 	doCapture   bool
+	http        *http.Server
 }
 
 func NewZehnderDevice(id byte) *ZehnderDevice {
-	return &ZehnderDevice{NodeID: id, pdoData: make(map[int]*PDOValue)}
+	return &ZehnderDevice{NodeID: id, pdoData: make(map[int]*PDOValue), Name: "Zehnder MVHR"}
 }
 
 func (dev *ZehnderDevice) Connect(interfaceName string) error {
@@ -54,20 +60,21 @@ func (dev *ZehnderDevice) Start() error {
 	dev.txQ = make(chan can.Frame)
 	dev.heartbeatQ = make(chan can.Frame)
 	dev.rmiRequestQ = make(chan *zehnderRMI)
-	dev.rmiCTS = make(chan bool, 1)
+	dev.rmiCTS = make(chan bool)
 
 	go dev.processFrame()
 	go dev.processPDOFrame()
 	go dev.processRMIFrame()
 	go dev.processRMIQueue()
-	dev.routines = 4
+	go dev.heartbeat()
+	dev.routines = 5
 
 	if dev.connection.device != nil {
+		log.Println("Starting network services")
 		// The receiver does not participate in the wait group, so
 		// don't include in the numbers...
 		go dev.receiver()
 		go dev.transmitter()
-		go dev.heartbeat()
 		dev.rmiCTS <- true
 		dev.routines = 6
 	}
@@ -75,11 +82,23 @@ func (dev *ZehnderDevice) Start() error {
 	return nil
 }
 
+func (dev *ZehnderDevice) hasNetwork() bool {
+	return dev.connection.conn != nil
+}
+
+func (dev *ZehnderDevice) StartHttpServer(host string, port int) {
+	go dev.startHttpServer(host, port)
+	dev.routines++
+}
+
 func (dev *ZehnderDevice) Wait() {
 	dev.wg.Wait()
 }
 
 func (dev *ZehnderDevice) Stop() {
+	if dev.http != nil {
+		dev.http.Shutdown(context.Background())
+	}
 	for n := 0; n < dev.routines; n++ {
 		dev.stopSignal <- true
 	}
@@ -119,18 +138,43 @@ func (dev *ZehnderDevice) ProcessDumpFile(filename string) (err error) {
 	fileScanner.Split(bufio.ScanLines)
 
 	for fileScanner.Scan() {
+		fmt.Print(".")
 		frame := can.Frame{}
 		frame.UnmarshalString(fileScanner.Text())
 		dev.frameQ <- frame
 	}
+	fmt.Println()
 
 	readFile.Close()
 	return err
 }
 
+type pair struct {
+	key   int
+	value *PDOValue
+}
+type pairList []pair
+
+func (p pairList) Len() int           { return len(p) }
+func (p pairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p pairList) Less(i, j int) bool { return p[i].value.Sensor.Name < p[j].value.Sensor.Name }
+
 func (dev *ZehnderDevice) DumpPDO() {
-	fmt.Println()
-	for key, element := range dev.pdoData {
-		fmt.Printf("%3d: %s\n", key, element)
+	p := make(pairList, len(dev.pdoData))
+	i := 0
+
+	for k, v := range dev.pdoData {
+		p[i] = pair{k, v}
+		i++
 	}
+
+	sort.Sort(p)
+
+	fmt.Println()
+	fmt.Println("ID   Name                                         Raw Data     Value Units")
+	fmt.Println("---- -------------------------------------------- ---------- ------- ---------")
+	for _, k := range p {
+		fmt.Printf("%3d  %s\n", k.key, k.value)
+	}
+	fmt.Println()
 }

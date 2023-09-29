@@ -1,8 +1,12 @@
 package zcan
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 func (dev *ZehnderDevice) processFrame() {
+	log.Println("processFrame routine started")
 	dev.wg.Add(1)
 loop:
 	for {
@@ -19,6 +23,8 @@ loop:
 				dev.rmiQ <- frame
 			case 0x10:
 				dev.heartbeatQ <- frame
+			default:
+				log.Printf("Unknown frame MSB: %02X", ck)
 			}
 		case <-dev.stopSignal:
 			break loop

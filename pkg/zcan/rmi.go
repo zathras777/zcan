@@ -1,13 +1,16 @@
 package zcan
 
 import (
-	"fmt"
+	"log"
 
 	"go.einride.tech/can"
 )
 
 func (dev *ZehnderDevice) processRMIFrame() {
 	var holder *zehnderRMI
+	dev.wg.Add(1)
+	defer dev.wg.Done()
+
 loop:
 	for {
 		select {
@@ -17,8 +20,8 @@ loop:
 				if rmi.SourceId == dev.NodeID {
 					continue
 				}
-				fmt.Printf("Received RMI but it's for us...%02X vs wanted %02X\n", rmi.DestId, dev.NodeID)
-				fmt.Println(rmi)
+				log.Printf("Received RMI but it's not for us...%02X vs wanted %02X\n", rmi.DestId, dev.NodeID)
+				log.Printf("FRAME: %s\n", rmi)
 				continue
 			}
 			if rmi.IsMulti {
@@ -37,6 +40,19 @@ loop:
 		case <-dev.stopSignal:
 			break loop
 		}
+	}
+}
+
+func (dev *ZehnderDevice) doRMICallback(rmi *zehnderRMI) {
+	if dev.rmiCbFn != nil {
+		dev.rmiCbFn(rmi.Data[:rmi.DataLength])
+		dev.rmiCbFn = nil
+	} else {
+		log.Println("RMI message received, but no callback was set?")
+	}
+
+	if dev.hasNetwork() {
+		dev.rmiCTS <- true
 	}
 }
 
@@ -157,16 +173,6 @@ func (zrmi *zehnderRMI) send(dev *ZehnderDevice) error {
 	frame.Length = uint8(zrmi.DataLength)
 	dev.txQ <- frame
 	return nil
-}
-
-func (dev *ZehnderDevice) doRMICallback(rmi *zehnderRMI) {
-	if dev.rmiCbFn != nil {
-		dev.rmiCbFn(rmi.Data[:rmi.DataLength])
-		dev.rmiCbFn = nil
-	} else {
-		fmt.Println("RMI message received, but no callback was set?")
-	}
-	dev.rmiCTS <- true
 }
 
 func (dev *ZehnderDevice) processRMIQueue() {

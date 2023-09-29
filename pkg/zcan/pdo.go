@@ -9,6 +9,12 @@ import (
 	"go.einride.tech/can"
 )
 
+func slugify(orig string) string {
+	slug := strings.ToLower(orig)
+	slug = strings.ReplaceAll(slug, " ", "-")
+	return slug
+}
+
 func (dev *ZehnderDevice) processPDOFrame() {
 loop:
 	for {
@@ -23,7 +29,7 @@ loop:
 			pv, ck := dev.pdoData[int(msg.pdoId)]
 			if !ck {
 				sensor := findSensor(int(msg.pdoId), msg.length)
-				pv = &PDOValue{sensor, nil}
+				pv = &PDOValue{sensor, nil, slugify(sensor.Name)}
 				dev.pdoData[int(msg.pdoId)] = pv
 			}
 			pv.Value = msg.data[:msg.length]
@@ -84,6 +90,7 @@ type PDOSensor struct {
 type PDOValue struct {
 	Sensor PDOSensor
 	Value  []byte
+	slug   string
 }
 
 var sensorData = map[int]PDOSensor{
@@ -95,7 +102,8 @@ var sensorData = map[int]PDOSensor{
 	121: {"Exhaust Fan Speed", UNIT_RPM, CN_UINT16, 0},
 	122: {"Supply Fan Speed", UNIT_RPM, CN_UINT16, 0},
 	128: {"Power Consumption", UNIT_WATT, CN_UINT16, 0},
-	213: {"Avoided Heating: Actual", UNIT_WATT, CN_UINT16, 2},
+	213: {"Avoided Heating Actual", UNIT_WATT, CN_UINT16, 2},
+	214: {"Avoided Heating YTD", UNIT_KWH, CN_UINT16, 0},
 	220: {"Preheated Air Temperature (pre Heating)", UNIT_CELCIUS, CN_UINT16, 1},
 	221: {"Preheated Air Temperature (post Heating)", UNIT_CELCIUS, CN_UINT16, 1},
 	227: {"Bypass State", UNIT_PERCENT, CN_UINT8, 0},
@@ -108,8 +116,6 @@ var sensorData = map[int]PDOSensor{
 	292: {"Outdoor Humidity", UNIT_PERCENT, CN_UINT8, 0},
 	293: {"Preheated Outdoor Humidity", UNIT_PERCENT, CN_UINT8, 0},
 }
-
-//    213: ZehnderSensor(213, "Avoided Heating Today", UNIT_WATT, watts),
 
 func findSensor(pdo int, dataLen int) PDOSensor {
 	sensor, ck := sensorData[pdo]
@@ -126,7 +132,7 @@ func findSensor(pdo int, dataLen int) PDOSensor {
 }
 
 func (pv PDOValue) String() string {
-	s := fmt.Sprintf("%-45s: 0x%-8s", pv.Sensor.Name, strings.ToUpper(hex.EncodeToString(pv.Value)))
+	s := fmt.Sprintf("%-45s0x%-8s", pv.Sensor.Name, strings.ToUpper(hex.EncodeToString(pv.Value)))
 	if pv.IsFloat() {
 		fmtS := fmt.Sprintf("  %%6.%df", pv.Sensor.DecimalPlaces)
 		s += fmt.Sprintf(fmtS, pv.Float())
@@ -135,6 +141,17 @@ func (pv PDOValue) String() string {
 	}
 	s += " " + pv.Sensor.Units
 	return s
+}
+
+func (pv PDOValue) jsonString() string {
+	var val string
+	if pv.IsFloat() {
+		fmtS := fmt.Sprintf("%%.%df", pv.Sensor.DecimalPlaces)
+		val = fmt.Sprintf(fmtS, pv.Float())
+	} else {
+		val = fmt.Sprintf("%d", pv.Number())
+	}
+	return fmt.Sprintf("\"%s\": %s", pv.slug, val)
 }
 
 func (pv PDOValue) IsBool() bool   { return pv.Sensor.DataType == CN_BOOL }
