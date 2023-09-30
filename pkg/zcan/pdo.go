@@ -23,10 +23,9 @@ loop:
 		case frame := <-dev.pdoQ:
 			msg := pdoFromFrame(frame)
 			if msg.pdoId == 0 {
-				fmt.Println("Ignoring PDO with an ID of 0")
+				log.Println("Ignoring PDO with an ID of 0")
 				continue
 			}
-			//fmt.Println(msg)
 			pv, ck := dev.pdoData[int(msg.pdoId)]
 			if !ck {
 				sensor := findSensor(int(msg.pdoId), msg.length)
@@ -48,11 +47,27 @@ type pdoMessage struct {
 }
 
 func pdoFromFrame(frame can.Frame) pdoMessage {
-	return pdoMessage{nodeId: frame.ID & 0x3F, pdoId: (frame.ID >> 14) & 0x7FF, length: int(frame.Length), data: frame.Data[:frame.Length]}
+	return pdoMessage{
+		nodeId: frame.ID & 0x3F,
+		pdoId:  (frame.ID >> 14) & 0x7FF,
+		length: int(frame.Length),
+		data:   frame.Data[:frame.Length],
+	}
+}
+
+func (dev *ZehnderDevice) RequestPDO(prod byte, pdo uint16, interval byte) {
+	canid := uint32(pdo&0x7ff)<<14 + uint32(0x40+prod)
+	frame := can.Frame{ID: canid, IsExtended: true, IsRemote: true}
+	copy(frame.Data[:], []byte{interval})
+	frame.Length = 1
+	dev.txQ <- frame
 }
 
 func (pdo pdoMessage) String() string {
-	return fmt.Sprintf("Node ID: %d, PDO ID: %d  => 0x%s", pdo.nodeId, pdo.pdoId, strings.ToUpper(hex.EncodeToString(pdo.data[:pdo.length])))
+	return fmt.Sprintf("Node ID: %d, PDO ID: %d  => 0x%s",
+		pdo.nodeId,
+		pdo.pdoId,
+		strings.ToUpper(hex.EncodeToString(pdo.data[:pdo.length])))
 }
 
 const (

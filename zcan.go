@@ -60,6 +60,35 @@ func dumpStoredRMI() {
 	}
 }
 
+func requestPDO(dev *zcan.ZehnderDevice) {
+	type pdoToRequest struct {
+		productId byte
+		pdoId     uint16
+		frequency byte
+	}
+	var requests = []pdoToRequest{
+		{1, 49, 0xff},
+		{1, 65, 0xff},
+		{1, 81, 1},
+		{1, 117, 5},
+		{1, 118, 5},
+		{1, 119, 5},
+		{1, 120, 5},
+		{1, 121, 5},
+		{1, 122, 5},
+		{1, 192, 0xff},
+		{1, 209, 0xff},
+		{1, 227, 0x10},
+		{1, 274, 2},
+		{1, 275, 2},
+		{1, 276, 2},
+		{1, 278, 2},
+	}
+	for _, req := range requests {
+		dev.RequestPDO(req.productId, req.pdoId, req.frequency)
+	}
+}
+
 func main() {
 	var (
 		nodeId       int
@@ -111,7 +140,7 @@ func main() {
 		dumpStoredRMI()
 	} else {
 		fmt.Printf("\n\nProcessing CAN packets. CTRL+C to quit...\n\n")
-
+		requestPDO(dev)
 		dest := zcan.NewZehnderDestination(1, 1, 1)
 		dest.GetMultiple(dev, []byte{4, 6, 8}, zcan.ZehnderRMITypeActualValue, logModelData)
 
@@ -123,7 +152,7 @@ func main() {
 			dev.Stop()
 		}()
 	}
-
+	fmt.Println("Waiting for everything to complete...")
 	dev.Wait()
 
 	dev.DumpPDO()

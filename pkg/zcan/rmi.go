@@ -184,13 +184,11 @@ func (zrmi *ZehnderRMI) send(dev *ZehnderDevice) error {
 }
 
 func (zrmi *ZehnderRMI) GetData(typ ZehnderType) (rv any, err error) {
-	fmt.Printf("readPos %d, DataLength %d\n", zrmi.readPos, zrmi.DataLength)
 	if zrmi.readPos >= zrmi.DataLength {
 		err = fmt.Errorf("unable to extract any more data from the RMI data")
 		return
 	}
 	data := zrmi.Data[zrmi.readPos:]
-	fmt.Println(data)
 	switch typ {
 	case CN_BOOL:
 		rv = data[0] == 1
