@@ -196,12 +196,12 @@ func (zrmi *ZehnderRMI) GetData(typ ZehnderType) (rv any, err error) {
 	case CN_STRING:
 		rb := 0
 		var c byte
-		for rb, c = range data {
+		for rb, c = range data[:zrmi.DataLength] {
 			if c == 0 {
 				break
 			}
 		}
-		rv = string(data[:rb+1])
+		rv = string(data[:rb])
 		zrmi.readPos += rb + 1
 	case CN_VERSION:
 		rv = ZehnderVersionDecode(binary.LittleEndian.Uint32(data))

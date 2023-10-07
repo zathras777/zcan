@@ -198,9 +198,15 @@ func (pv PDOValue) GetData() interface{} {
 	case CN_VERSION:
 		return ZehnderVersionDecode(binary.LittleEndian.Uint32(pv.Value))
 	case CN_UINT8, CN_UINT16, CN_UINT32:
-		return pv.Number()
+		val := pv.Number()
+		if pv.Sensor.DecimalPlaces > 0 {
+			return float64(val) / (float64(pv.Sensor.DecimalPlaces) * 10)
+		}
 	case CN_INT8, CN_INT16, CN_INT64:
-		return pv.SignedNumber()
+		val := pv.SignedNumber()
+		if pv.Sensor.DecimalPlaces > 0 {
+			return float64(val) / (float64(pv.Sensor.DecimalPlaces) * 10)
+		}
 	}
 	return "Unknown"
 }

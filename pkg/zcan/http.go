@@ -27,7 +27,7 @@ func (dev *ZehnderDevice) startHttpServer(host string, port int) {
 func (dev *ZehnderDevice) jsonResponse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	dataMap := make(map[string]interface{})
-	dataMap["model"] = dev.Name
+	dataMap["model"] = dev.Model
 	dataMap["serial_number"] = dev.SerialNumber
 
 	for _, v := range dev.pdoData {

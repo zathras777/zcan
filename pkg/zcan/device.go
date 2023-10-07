@@ -103,13 +103,13 @@ func (dev *ZehnderDevice) StartHttpServer(host string, port int) {
 func (dev *ZehnderDevice) storeDeviceInfo(rmi *ZehnderRMI) {
 	tmp, err := rmi.GetData(CN_STRING)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("unable to get device serial number: %s", err)
 		return
 	}
 	dev.SerialNumber = tmp.(string)
 	tmp, err = rmi.GetData(CN_STRING)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("unable to get device model description: %s", err)
 		return
 	}
 	dev.Model = tmp.(string)
@@ -117,7 +117,7 @@ func (dev *ZehnderDevice) storeDeviceInfo(rmi *ZehnderRMI) {
 
 func (dev *ZehnderDevice) GetDeviceInfo() {
 	dest := NewZehnderDestination(1, 1, 1)
-	dest.GetMultiple(dev, []byte{4, 6, 8}, ZehnderRMITypeActualValue, dev.storeDeviceInfo)
+	dest.GetMultiple(dev, []byte{4, 8}, ZehnderRMITypeActualValue, dev.storeDeviceInfo)
 }
 
 func (dev *ZehnderDevice) Wait() {
