@@ -182,6 +182,29 @@ func findSensor(pdo int, dataLen int) PDOSensor {
 	return sensor
 }
 
+func (pv PDOValue) GetData() interface{} {
+	switch pv.Sensor.DataType {
+	case CN_BOOL:
+		return pv.Value[0] == 1
+	case CN_STRING:
+		rb := 0
+		var c byte
+		for rb, c = range pv.Value {
+			if c == 0 {
+				break
+			}
+		}
+		return string(pv.Value[:rb+1])
+	case CN_VERSION:
+		return ZehnderVersionDecode(binary.LittleEndian.Uint32(pv.Value))
+	case CN_UINT8, CN_UINT16, CN_UINT32:
+		return pv.Number()
+	case CN_INT8, CN_INT16, CN_INT64:
+		return pv.SignedNumber()
+	}
+	return "Unknown"
+}
+
 func (pv PDOValue) String() string {
 	s := fmt.Sprintf("%-45s0x%-8s", pv.Sensor.Name, strings.ToUpper(hex.EncodeToString(pv.Value)))
 	if pv.IsFloat() {

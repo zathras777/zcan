@@ -31,18 +31,9 @@ func (dev *ZehnderDevice) jsonResponse(w http.ResponseWriter, r *http.Request) {
 	dataMap["serial_number"] = dev.SerialNumber
 
 	for _, v := range dev.pdoData {
-		dataMap[v.Sensor.slug] = v
+		dataMap[v.Sensor.slug] = v.GetData()
 	}
 
-	/*
-		var data []string#
-		for _, element := range dev.pdoData {
-			data = append(data, element.jsonString())
-		}
-		data, _ := json.Marshal(birdData)
-
-		io.WriteString(w, "{\"name\": \""+dev.Name+"\", "+strings.Join(data, ", ")+"}")
-	*/
 	outData, err := json.Marshal(dataMap)
 	if err == nil {
 		w.Write(outData)
