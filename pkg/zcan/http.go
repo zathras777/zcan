@@ -1,11 +1,10 @@
 package zcan
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"strings"
 )
 
 func (dev *ZehnderDevice) startHttpServer(host string, port int) {
@@ -27,11 +26,29 @@ func (dev *ZehnderDevice) startHttpServer(host string, port int) {
 
 func (dev *ZehnderDevice) jsonResponse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	var data []string
-	for _, element := range dev.pdoData {
-		data = append(data, element.jsonString())
+	dataMap := make(map[string]interface{})
+	dataMap["model"] = dev.Name
+	dataMap["serial_number"] = dev.SerialNumber
+
+	for _, v := range dev.pdoData {
+		dataMap[v.Sensor.slug] = v
 	}
-	io.WriteString(w, "{\"name\": \""+dev.Name+"\", "+strings.Join(data, ", ")+"}")
+
+	/*
+		var data []string#
+		for _, element := range dev.pdoData {
+			data = append(data, element.jsonString())
+		}
+		data, _ := json.Marshal(birdData)
+
+		io.WriteString(w, "{\"name\": \""+dev.Name+"\", "+strings.Join(data, ", ")+"}")
+	*/
+	outData, err := json.Marshal(dataMap)
+	if err == nil {
+		w.Write(outData)
+		return
+	}
+	log.Printf("Unable to generate json data: %s", err)
 }
 
 func (dev *ZehnderDevice) dumpPDO(w http.ResponseWriter, r *http.Request) {

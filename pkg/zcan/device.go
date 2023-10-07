@@ -24,6 +24,9 @@ type ZehnderDevice struct {
 	NodeID    byte
 	Connected bool
 
+	Model        string
+	SerialNumber string
+
 	connection zConnection
 
 	wg             sync.WaitGroup
@@ -84,6 +87,7 @@ func (dev *ZehnderDevice) Start() error {
 		dev.routines = 6
 	}
 
+	dev.GetDeviceInfo()
 	return nil
 }
 
@@ -94,6 +98,26 @@ func (dev *ZehnderDevice) hasNetwork() bool {
 func (dev *ZehnderDevice) StartHttpServer(host string, port int) {
 	go dev.startHttpServer(host, port)
 	dev.routines++
+}
+
+func (dev *ZehnderDevice) storeDeviceInfo(rmi *ZehnderRMI) {
+	tmp, err := rmi.GetData(CN_STRING)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	dev.SerialNumber = tmp.(string)
+	tmp, err = rmi.GetData(CN_STRING)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	dev.Model = tmp.(string)
+}
+
+func (dev *ZehnderDevice) GetDeviceInfo() {
+	dest := NewZehnderDestination(1, 1, 1)
+	dest.GetMultiple(dev, []byte{4, 6, 8}, ZehnderRMITypeActualValue, dev.storeDeviceInfo)
 }
 
 func (dev *ZehnderDevice) Wait() {

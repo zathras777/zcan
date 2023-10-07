@@ -26,10 +26,14 @@ loop:
 				log.Println("Ignoring PDO with an ID of 0")
 				continue
 			}
+			// temp debugging for intervals
+			if msg.pdoId == 49 || msg.pdoId == 209 || msg.pdoId == 117 || msg.pdoId == 227 {
+				log.Println(frame)
+			}
 			pv, ck := dev.pdoData[int(msg.pdoId)]
 			if !ck {
 				sensor := findSensor(int(msg.pdoId), msg.length)
-				pv = &PDOValue{sensor, nil, slugify(sensor.Name)}
+				pv = &PDOValue{sensor, nil}
 				dev.pdoData[int(msg.pdoId)] = pv
 			}
 			pv.Value = msg.data[:msg.length]
@@ -61,6 +65,25 @@ func (dev *ZehnderDevice) RequestPDO(prod byte, pdo uint16, interval byte) {
 	copy(frame.Data[:], []byte{interval})
 	frame.Length = 1
 	dev.txQ <- frame
+}
+
+func (dev *ZehnderDevice) RequestPDOBySlug(prod byte, pdoSlug string, interval byte) error {
+	var pdo uint16 = 0
+	for id, poss := range sensorData {
+		if poss.slug == strings.ToLower(pdoSlug) {
+			pdo = uint16(id)
+			break
+		}
+	}
+	if pdo == 0 {
+		return fmt.Errorf("no matching PDO found for '%s'", pdoSlug)
+	}
+	canid := uint32(pdo&0x7ff)<<14 + uint32(0x40+prod)
+	frame := can.Frame{ID: canid, IsExtended: true, IsRemote: true}
+	copy(frame.Data[:], []byte{interval})
+	frame.Length = 1
+	dev.txQ <- frame
+	return nil
 }
 
 func (pdo pdoMessage) String() string {
@@ -99,6 +122,7 @@ const (
 
 type PDOSensor struct {
 	Name          string
+	slug          string
 	Units         string
 	DataType      ZehnderType
 	DecimalPlaces int
@@ -107,46 +131,47 @@ type PDOSensor struct {
 type PDOValue struct {
 	Sensor PDOSensor
 	Value  []byte
-	slug   string
 }
 
 var sensorData = map[int]PDOSensor{
-	49:  {"Operating Mode", UNIT_UNKNOWN, CN_INT8, 0},
-	65:  {"Fan Speed Setting", UNIT_UNKNOWN, CN_INT8, 0},
-	81:  {"Boost Period Remaining", UNIT_SECONDS, CN_UINT32, 0},
-	117: {"Exhaust Fan Duty", UNIT_PERCENT, CN_UINT8, 0},
-	118: {"Supply Fan Duty", UNIT_PERCENT, CN_UINT8, 0},
-	119: {"Exhaust Fan Flow", UNIT_M3H, CN_UINT16, 0},
-	120: {"Supply Fan Flow", UNIT_M3H, CN_UINT16, 0},
-	121: {"Exhaust Fan Speed", UNIT_RPM, CN_UINT16, 0},
-	122: {"Supply Fan Speed", UNIT_RPM, CN_UINT16, 0},
-	128: {"Power Consumption", UNIT_WATT, CN_UINT16, 0},
-	130: {"Power Consumption Total", UNIT_KWH, CN_UINT16, 0},
-	145: {"Preheater Power Consumption Total", UNIT_KWH, CN_UINT16, 0},
-	146: {"Preheater Power Consumption", UNIT_WATT, CN_UINT16, 0},
-	192: {"Filter Replacement Days", UNIT_DAYS, CN_UINT16, 0},
-	209: {"RMOT", UNIT_CELCIUS, CN_UINT16, 1},
-	213: {"Avoided Heating Actual", UNIT_WATT, CN_UINT16, 2},
-	214: {"Avoided Heating YTD", UNIT_KWH, CN_UINT16, 0},
-	220: {"Preheated Air Temperature (pre Heating)", UNIT_CELCIUS, CN_UINT16, 1},
-	221: {"Preheated Air Temperature (post Heating)", UNIT_CELCIUS, CN_UINT16, 1},
-	227: {"Bypass State", UNIT_PERCENT, CN_UINT8, 0},
-	274: {"Extract Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
-	275: {"Exhaust Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
-	276: {"Outdoor Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
-	277: {"Preheated Outside Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
-	278: {"Supply Air Temperature", UNIT_CELCIUS, CN_UINT16, 1},
-	290: {"Extract Humidity", UNIT_PERCENT, CN_UINT8, 0},
-	291: {"Exhaust Humidity", UNIT_PERCENT, CN_UINT8, 0},
-	292: {"Outdoor Humidity", UNIT_PERCENT, CN_UINT8, 0},
-	293: {"Preheated Outdoor Humidity", UNIT_PERCENT, CN_UINT8, 0},
-	294: {"Supply Air Humidity", UNIT_PERCENT, CN_INT8, 0},
+	49:  {"Operating Mode", "operating_mode", UNIT_UNKNOWN, CN_INT8, 0},
+	65:  {"Fan Speed Setting", "fan_speed_setting", UNIT_UNKNOWN, CN_INT8, 0},
+	81:  {"Boost Period Remaining", "boost_period_remaining", UNIT_SECONDS, CN_UINT32, 0},
+	117: {"Exhaust Fan Duty", "exhaust_fan_duty", UNIT_PERCENT, CN_UINT8, 0},
+	118: {"Supply Fan Duty", "supply_fan_duty", UNIT_PERCENT, CN_UINT8, 0},
+	119: {"Exhaust Fan Flow", "exhaust_fan_flow", UNIT_M3H, CN_UINT16, 0},
+	120: {"Supply Fan Flow", "supply_fan_flow", UNIT_M3H, CN_UINT16, 0},
+	121: {"Exhaust Fan Speed", "exhaust_fan_speed", UNIT_RPM, CN_UINT16, 0},
+	122: {"Supply Fan Speed", "supply_fan_speed", UNIT_RPM, CN_UINT16, 0},
+	128: {"Power Consumption", "power_consumption", UNIT_WATT, CN_UINT16, 0},
+	130: {"Power Consumption Total", "power_consumption_total", UNIT_KWH, CN_UINT16, 0},
+	145: {"Preheater Power Consumption Total", "prehater_power_consumption_total", UNIT_KWH, CN_UINT16, 0},
+	146: {"Preheater Power Consumption", "preheater_power_consumption", UNIT_WATT, CN_UINT16, 0},
+	192: {"Filter Replacement Days", "filter_replacement_days", UNIT_DAYS, CN_UINT16, 0},
+	209: {"RMOT", "rmot", UNIT_CELCIUS, CN_UINT16, 1},
+	213: {"Avoided Heating Actual", "avoided_heating_actual", UNIT_WATT, CN_UINT16, 2},
+	214: {"Avoided Heating YTD", "avoided_heating_ytd", UNIT_KWH, CN_UINT16, 0},
+	220: {"Preheated Air Temperature (pre Heating)", "preheated_air_temperature_(pre_heating)", UNIT_CELCIUS, CN_UINT16, 1},
+	221: {"Preheated Air Temperature (post Heating)", "preheated_air_temperature_(post_heating)", UNIT_CELCIUS, CN_UINT16, 1},
+	227: {"Bypass State", "bypass_state", UNIT_PERCENT, CN_UINT8, 0},
+	274: {"Extract Air Temperature", "extract_air_temperature", UNIT_CELCIUS, CN_UINT16, 1},
+	275: {"Exhaust Air Temperature", "exhaust_air_temperature", UNIT_CELCIUS, CN_UINT16, 1},
+	276: {"Outdoor Air Temperature", "outdoor_air_temperature", UNIT_CELCIUS, CN_UINT16, 1},
+	277: {"Preheated Outside Air Temperature", "preheated_outside_air_temperature", UNIT_CELCIUS, CN_UINT16, 1},
+	278: {"Supply Air Temperature", "supply_air_temperature", UNIT_CELCIUS, CN_UINT16, 1},
+	290: {"Extract Humidity", "extract_humidity", UNIT_PERCENT, CN_UINT8, 0},
+	291: {"Exhaust Humidity", "exhaust_humidity", UNIT_PERCENT, CN_UINT8, 0},
+	292: {"Outdoor Humidity", "outdoor_humidity", UNIT_PERCENT, CN_UINT8, 0},
+	293: {"Preheated Outdoor Humidity", "preheated_outdoor_humidity", UNIT_PERCENT, CN_UINT8, 0},
+	294: {"Supply Air Humidity", "supply_air_humidity", UNIT_PERCENT, CN_INT8, 0},
 }
 
 func findSensor(pdo int, dataLen int) PDOSensor {
 	sensor, ck := sensorData[pdo]
 	if !ck {
-		sensor = PDOSensor{fmt.Sprintf("Unknown sensor %d", pdo), UNIT_UNKNOWN, CN_UINT16, 0}
+		log.Printf("unknown sensor 0x%02x [%d] %d bytes of data", pdo, pdo, dataLen)
+		sensorName := fmt.Sprintf("Unknown sensor %d", pdo)
+		sensor = PDOSensor{sensorName, slugify(sensorName), UNIT_UNKNOWN, CN_UINT16, 0}
 		if dataLen == 1 {
 			sensor.DataType = CN_UINT8
 		} else if dataLen == 4 {
@@ -181,7 +206,7 @@ func (pv PDOValue) jsonString() string {
 	} else {
 		val = fmt.Sprintf("%d", pv.Number())
 	}
-	return fmt.Sprintf("\"%s\": %s", pv.slug, val)
+	return fmt.Sprintf("\"%s\": %s", pv.Sensor.slug, val)
 }
 
 func (pv PDOValue) IsBool() bool   { return pv.Sensor.DataType == CN_BOOL }

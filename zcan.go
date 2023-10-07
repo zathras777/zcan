@@ -11,38 +11,7 @@ import (
 	"github.com/zathras777/zcan/pkg/zcan"
 )
 
-func index00(data []byte, start int) int {
-	fmt.Println(data)
-	pos := start
-	for b := start; b < len(data); b++ {
-		if data[b] == 0x00 {
-			return b
-		}
-	}
-	return pos
-}
-
 var dev *zcan.ZehnderDevice
-
-func logModelData(rmi *zcan.ZehnderRMI) {
-	serial, err := rmi.GetData(zcan.CN_STRING)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	vers, err := rmi.GetData(zcan.CN_VERSION)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	model, err := rmi.GetData(zcan.CN_STRING)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	log.Printf("Processing data for %s [%s] Version %d.%d", model, serial, vers.([]int)[0], vers.([]int)[1])
-	dev.Name = fmt.Sprintf("%s [%s]", model, serial)
-}
 
 var rmiMsgs []*zcan.ZehnderRMI
 
@@ -87,6 +56,8 @@ func requestPDO(dev *zcan.ZehnderDevice) {
 	for _, req := range requests {
 		dev.RequestPDO(req.productId, req.pdoId, req.frequency)
 	}
+	dev.RequestPDOBySlug(1, "exhaust_humidity", 2)
+
 }
 
 func main() {
@@ -130,6 +101,16 @@ func main() {
 		}
 	}
 
+	if dumpFilename == "" {
+		f, err := os.OpenFile("zcan.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("error opening file: %v", err)
+		}
+		defer f.Close()
+
+		log.SetOutput(f)
+	}
+
 	dev.Start()
 
 	if dumpFilename != "" {
@@ -141,8 +122,6 @@ func main() {
 	} else {
 		fmt.Printf("\n\nProcessing CAN packets. CTRL+C to quit...\n\n")
 		requestPDO(dev)
-		dest := zcan.NewZehnderDestination(1, 1, 1)
-		dest.GetMultiple(dev, []byte{4, 6, 8}, zcan.ZehnderRMITypeActualValue, logModelData)
 
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
