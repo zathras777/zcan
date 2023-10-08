@@ -24,8 +24,9 @@ type ZehnderDevice struct {
 	NodeID    byte
 	Connected bool
 
-	Model        string
-	SerialNumber string
+	Model           string
+	SerialNumber    string
+	SoftwareVersion string
 
 	connection zConnection
 
@@ -38,6 +39,7 @@ type ZehnderDevice struct {
 	txQ            chan can.Frame
 	heartbeatQ     chan can.Frame
 	rmiRequestQ    chan *ZehnderRMI
+	info_syncer    chan bool
 	rmiCTS         chan bool
 	pdoData        map[int]*PDOValue
 	rmiCbFn        func(*ZehnderRMI)
@@ -87,7 +89,6 @@ func (dev *ZehnderDevice) Start() error {
 		dev.routines = 6
 	}
 
-	dev.GetDeviceInfo()
 	return nil
 }
 
@@ -104,20 +105,31 @@ func (dev *ZehnderDevice) storeDeviceInfo(rmi *ZehnderRMI) {
 	tmp, err := rmi.GetData(CN_STRING)
 	if err != nil {
 		log.Printf("unable to get device serial number: %s", err)
+		dev.info_syncer <- false
 		return
 	}
 	dev.SerialNumber = tmp.(string)
+	tmp, err = rmi.GetData(CN_VERSION)
+	if err != nil {
+		log.Printf("unable to get software version from device: %s", err)
+		dev.info_syncer <- false
+		return
+	}
+	dev.SoftwareVersion = tmp.(string)
 	tmp, err = rmi.GetData(CN_STRING)
 	if err != nil {
 		log.Printf("unable to get device model description: %s", err)
+		dev.info_syncer <- false
 		return
 	}
 	dev.Model = tmp.(string)
+	dev.info_syncer <- true
 }
 
-func (dev *ZehnderDevice) GetDeviceInfo() {
+func (dev *ZehnderDevice) getDeviceInfo(syncer chan bool) {
 	dest := NewZehnderDestination(1, 1, 1)
-	dest.GetMultiple(dev, []byte{4, 8}, ZehnderRMITypeActualValue, dev.storeDeviceInfo)
+	dest.GetMultiple(dev, []byte{4, 6, 8}, ZehnderRMITypeActualValue, dev.storeDeviceInfo)
+	dev.info_syncer = syncer
 }
 
 func (dev *ZehnderDevice) Wait() {
