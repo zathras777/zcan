@@ -204,7 +204,8 @@ func (zrmi *ZehnderRMI) GetData(typ ZehnderType) (rv any, err error) {
 		rv = string(data[:rb])
 		zrmi.readPos += rb + 1
 	case CN_VERSION:
-		rv = ZehnderVersionDecode(binary.LittleEndian.Uint32(data))
+		vers := ZehnderVersionDecode(binary.LittleEndian.Uint32(data))
+		rv = fmt.Sprintf("%d.%d", vers[0], vers[1])
 		zrmi.readPos += 4
 	case CN_UINT8:
 		rv = uint(data[0])

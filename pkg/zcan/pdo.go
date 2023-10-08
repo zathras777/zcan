@@ -202,11 +202,13 @@ func (pv PDOValue) GetData() interface{} {
 		if pv.Sensor.DecimalPlaces > 0 {
 			return float64(val) / (float64(pv.Sensor.DecimalPlaces) * 10)
 		}
+		return val
 	case CN_INT8, CN_INT16, CN_INT64:
 		val := pv.SignedNumber()
 		if pv.Sensor.DecimalPlaces > 0 {
 			return float64(val) / (float64(pv.Sensor.DecimalPlaces) * 10)
 		}
+		return val
 	}
 	return "Unknown"
 }
@@ -223,19 +225,6 @@ func (pv PDOValue) String() string {
 	}
 	s += " " + pv.Sensor.Units
 	return s
-}
-
-func (pv PDOValue) jsonString() string {
-	var val string
-	if pv.IsFloat() {
-		fmtS := fmt.Sprintf("%%.%df", pv.Sensor.DecimalPlaces)
-		val = fmt.Sprintf(fmtS, pv.Float())
-	} else if pv.IsSigned() {
-		val = fmt.Sprintf("%d", pv.SignedNumber())
-	} else {
-		val = fmt.Sprintf("%d", pv.Number())
-	}
-	return fmt.Sprintf("\"%s\": %s", pv.Sensor.slug, val)
 }
 
 func (pv PDOValue) IsBool() bool   { return pv.Sensor.DataType == CN_BOOL }
